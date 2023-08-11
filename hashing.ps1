@@ -2,8 +2,21 @@
 $timestamp = Get-Date -Format "yyyy-MM-dd-HH-mm-ss"
 $outputFile = "hashrun-$timestamp.csv"
 
+# Count the total number of files to be processed and provide feedback
+$counter = 0
+$totalFiles = (Get-ChildItem -Path C:\ -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+    $counter++
+    Write-Progress -Status "Counting Files" -Activity "Discovered $counter files so far..." -PercentComplete ($counter % 100) 
+    $_
+}).Count
+
+$processedFiles = 0
+$startTime = Get-Date
+
 # Function to compute hash values for a file and write to CSV
 function ComputeHashForFile($file) {
+    global $processedFiles, $startTime, $totalFiles
+
     try {
         # Getting file hashes
         $md5 = (Get-FileHash -Path $file.FullName -Algorithm MD5).Hash
@@ -24,6 +37,15 @@ function ComputeHashForFile($file) {
 
         # Append the result to CSV file
         $result | Export-Csv -Path $outputFile -NoTypeInformation -Append
+
+        # Update progress
+        $remainingFiles = $totalFiles - $processedFiles
+        $processedFiles++
+        $elapsedTime = [datetime]::Now - $startTime
+        $estimatedTotalTime = $elapsedTime * ($totalFiles / $processedFiles)
+        $timeRemaining = $estimatedTotalTime - $elapsedTime
+
+        Write-Progress -PercentComplete ((($totalFiles - $remainingFiles) / $totalFiles) * 100) -Status "Processing Files" -Activity "$remainingFiles files remaining. Estimated time remaining: $($timeRemaining.ToString("hh\:mm\:ss"))"
 
     } catch {
         Write-Error "Failed to process file: $($file.FullName). Error: $($_.Exception.Message)"
